@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
@@ -103,8 +104,34 @@ func signup(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func GenerateToken(user User) (string, error) {
+	var err error
+	secret := "secret"
+
+	// a jwt
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email": user.Email,
+		"iss":   "course",
+	})
+
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		log.Fatal(err)
+	}
+	return tokenString, nil
+}
+
 func login(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Successfully called login"))
+	var user User
+
+	json.NewDecoder(r.Body).Decode(&user)
+
+	token, err := GenerateToken(user)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(token)
 }
 
 func ProtectedEndpoint(w http.ResponseWriter, r *http.Request) {
