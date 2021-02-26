@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -54,6 +55,10 @@ func respondWithError(w http.ResponseWriter, status int, error Error) {
 	json.NewEncoder(w).Encode(error)
 }
 
+func responseJSON(w http.ResponseWriter, data interface{}) {
+	json.NewEncoder(w).Encode(data)
+}
+
 func signup(w http.ResponseWriter, r *http.Request) {
 	// w.Write([]byte("Successfully called signup"))
 	var user User
@@ -72,6 +77,26 @@ func signup(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, error)
 		return
 	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	user.Password = string(hash)
+
+	stmt := "insert into users (email, password) values($1, $2) returning id;"
+
+	err = db.QueryRow(stmt, user.Email, user.Password).Scan(&user.ID)
+	if err != nil {
+		error.Message = "Server error"
+		respondWithError(w, http.StatusInternalServerError, error)
+		return
+	}
+	user.Password = ""
+
+	w.Header().Set("Content-Type", "application/json")
+	responseJSON(w, user)
 
 	//The best thing to debug with print
 	//spew.Dump(user)
