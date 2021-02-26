@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/lib/pq"
@@ -124,7 +123,7 @@ func GenerateToken(user User) (string, error) {
 
 func login(w http.ResponseWriter, r *http.Request) {
 	var user User
-	// var jwt JWT
+	var jwt JWT
 	var error Error
 
 	json.NewDecoder(r.Body).Decode(&user)
@@ -141,7 +140,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// password := user.Password
+	password := user.Password
 
 	row := db.QueryRow("select * from users where email=$1", user.Email)
 	err := row.Scan(&user.ID, &user.Email, &user.Password)
@@ -155,7 +154,24 @@ func login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	spew.Dump(user)
+	hashedPassword := user.Password
+
+	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	if err != nil {
+		error.Message = "invalida password"
+		respondWithError(w, http.StatusUnauthorized, error)
+		return
+	}
+
+	token, err := GenerateToken(user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	w.WriteHeader(http.StatusOK)
+	jwt.Token = token
+
+	responseJSON(w, jwt)
+
 }
 
 func ProtectedEndpoint(w http.ResponseWriter, r *http.Request) {
